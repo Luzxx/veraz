@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>VerazYa (DEBUG FIX) – Pago $8.000</title>
+<style>
+  body{font-family:Arial,system-ui;margin:0;background:#0b0d10;color:#e5e7eb}
+  .container{max-width:900px;margin:24px auto;padding:0 16px}
+  .card{background:#12151a;border:1px solid #1e2631;border-radius:12px;padding:16px}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  input,textarea{width:100%;padding:10px;background:#0f141b;border:1px solid #232b36;color:#fff;border-radius:8px}
+  button,.btn{display:inline-flex;align-items:center;gap:.5rem;background:#e11d48;color:#fff;padding:10px 14px;border-radius:10px;border:none;cursor:pointer}
+  .muted{color:#9aa3af}
+  pre#log{background:#0f141b;border:1px solid #232b36;border-radius:8px;padding:10px;white-space:pre-wrap;max-height:260px;overflow:auto}
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>VerazYa (DEBUG FIX)</h1>
+    <p class="muted">Esta versión ya tiene tu WEBAPP_URL pegada correctamente.</p>
+    <div class="row">
+      <form id="formCompra" class="card" novalidate>
+        <h3>Formulario</h3>
+        <input name="nombre" placeholder="Nombre" required />
+        <input name="apellido" placeholder="Apellido" required />
+        <input name="dni" placeholder="DNI" required />
+        <input name="email" type="email" placeholder="Email" required />
+        <input name="whatsapp" placeholder="WhatsApp" required />
+        <textarea name="notas" rows="3" placeholder="Notas"></textarea>
+        <label><input type="checkbox" id="privacidad" required /> <span class="muted">Acepto la privacidad</span></label>
+        <button type="submit">Obtener mi informe ($8.000)</button>
+      </form>
+      <div class="card">
+        <h3>Acción rápida</h3>
+        <a id="btnPagar" class="btn" href="#">Ir a pagar (usa formulario)</a>
+        <p class="muted">Primero completa el form y marcá la casilla.</p>
+        <h3>LOG</h3>
+        <pre id="log"></pre>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  const logEl = document.getElementById('log');
+  function log(...args){
+    const line = args.map(a => {
+      try { return typeof a === 'string' ? a : JSON.stringify(a,null,2); }
+      catch(e){ return String(a); }
+    }).join(' ');
+    logEl.textContent += line + "\n";
+    logEl.scrollTop = logEl.scrollHeight;
+    console.log('[DEBUG]', ...args);
+  }
+
+  const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbwJ6K3NBrUbZHzHpF7W-LgJlt9E2-b_HMWt2SpccO5ArjjhaopIZCEiaAOybHYb85ec/exec';
+  log('WEBAPP_URL:', WEBAPP_URL);
+
+  const form = document.getElementById('formCompra');
+  const btnPagar = document.getElementById('btnPagar');
+
+  async function crearPreferencia(datos){
+    const body = new URLSearchParams();
+    for (const [k,v] of datos.entries()) body.append(k,v);
+    body.append('monto','8000');
+    log('POST to', WEBAPP_URL, 'body=', Object.fromEntries(body));
+
+    try{
+      const res = await fetch(WEBAPP_URL, {
+        method:'POST',
+        redirect:'follow',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+        body
+      });
+      const text = await res.text();
+      log('HTTP status:', res.status, res.statusText);
+      log('Raw response:', text.slice(0,500));
+      let data = {};
+      try { data = JSON.parse(text); } catch(e){ log('JSON parse error:', e.message); }
+      return {res, data, text};
+    } catch(err){
+      log('FETCH ERROR:', err.message);
+      throw err;
+    }
+  }
+
+  form.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    if(!form.checkValidity()){ log('Formulario inválido (faltan campos o privacidad).'); form.reportValidity(); return; }
+    log('Submit OK. Creando preferencia...');
+    try{
+      const {res, data} = await crearPreferencia(new FormData(form));
+      if (data.ok && data.init_point){
+        log('Preferencia OK. Redirigiendo a MP:', data.init_point);
+        window.location.href = data.init_point;
+      } else {
+        log('Preferencia FALLÓ:', data);
+        alert('No se pudo iniciar el pago. Revisá el LOG.');
+      }
+    } catch(err){
+      alert('Error de red. Revisá el LOG.');
+    }
+  });
+
+  btnPagar.addEventListener('click', (e)=>{ e.preventDefault(); form.requestSubmit(); });
+})();
+</script>
+</body>
+</html>
