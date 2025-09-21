@@ -409,5 +409,85 @@
   btnPagar?.addEventListener('click', pagar);
   
 </script>
+  <script>
+/* ============ DEBUG PAGO MP ============ */
+(function () {
+  // 🔊 helper de log visible en consola
+  const L = (...a) => { try { console.log('[PAGO]', ...a); } catch(_){} };
+
+  // 1) Año dinámico (si falla aquí, el script ni se ejecutó)
+  try { document.getElementById('y').textContent = new Date().getFullYear(); } catch(e){}
+
+  // 2) URL de tu App Script (LA MÁS RECIENTE)
+  const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbyUdsT5SfJLN9SsKT7N1Cr9M_IJhxrCcqEr9E9v0Y6jsOV6o18yztAp4dwIS1w7sYOr/exec";
+  L('BOOT. WEBAPP_URL=', WEBAPP_URL);
+
+  // 3) Tomo elementos
+  const form    = document.getElementById('formCompra');
+  const btnPagar= document.getElementById('btnPagar');
+
+  if (!form)  { alert('No encontré el formulario #formCompra'); return; }
+  if (!btnPagar) L('WARN: no está #btnPagar (solo pagará con el submit)');
+
+  // 4) Función que crea preferencia por GET y redirige
+  async function crearPreferenciaGET(fd){
+    const q = new URLSearchParams();
+    for (const [k,v] of fd.entries()) q.append(k, v);
+    q.append('monto','8000');
+    q.append('route','create');
+    const url = WEBAPP_URL + '?' + q.toString();
+    L('FETCH GET', url);
+
+    const res = await fetch(url, { method:'GET' });
+    const txt = await res.text();
+    L('HTTP', res.status, res.statusText);
+    L('RAW', txt.slice(0,200));
+    try { return JSON.parse(txt); } catch(e){ return { ok:false, error:'Respuesta no válida', raw:txt }; }
+  }
+
+  async function pagar(e){
+    if (e) e.preventDefault();
+    // Validación html (nombre, email, privacidad, etc.)
+    if(!form.checkValidity()){
+      form.reportValidity();
+      L('Formulario inválido');
+      return false;
+    }
+    alert('Enviando datos… creando preferencia'); // 👈 para ver que SI entra aquí
+    try{
+      const r = await crearPreferenciaGET(new FormData(form));
+      L('RESP', r);
+      if (r.ok && r.init_point){
+        alert('Preferencia creada. Abriendo Mercado Pago…');
+        window.location.href = r.init_point;
+      } else {
+        alert('No se pudo iniciar el pago: ' + (r.error || 'reintentá'));
+        console.error('Backend:', r);
+      }
+    }catch(err){
+      alert('Error de red: ' + err.message + '. Probá en incógnito o sin adblock.');
+      console.error(err);
+    }
+    return false;
+  }
+
+  // 5) Enlazo eventos con try/catch para ver si hay errores
+  try {
+    form.addEventListener('submit', (e)=>{ e.preventDefault(); pagar(); });
+    L('Listener submit OK');
+  } catch(err){ alert('Error enganchando submit: ' + err.message); }
+
+  try {
+    if (btnPagar) {
+      // Si es <a href="#pago">, anulamos navegación
+      btnPagar.addEventListener('click', (e)=>{ e.preventDefault(); pagar(e); });
+      // Seguro extra si el listener no carga:
+      btnPagar.setAttribute('onclick','return false;'); // evita saltar al ancla
+      L('Listener btnPagar OK');
+    }
+  } catch(err){ alert('Error enganchando btnPagar: ' + err.message); }
+
+})();
+</script>
 </body>
 </html>
